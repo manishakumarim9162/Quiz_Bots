@@ -3127,7 +3127,7 @@ async def load_autoruns_on_startup(app):
 # ---------------- end autorun helpers ------------------
 
 async def autorun_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Owner-only: /autorun <quiz_id> <interval_minutes?> — schedule posting in SUPPORT_GROUP_ID."""
+    """Owner-only: /autorun <quiz_id> <interval_minutes|HH:MM> [wait_before_start_seconds]"""
     try:
         if OWNER_ID is None or update.message.from_user.id != OWNER_ID:
             await update.message.reply_text("❌ Unauthorized")
@@ -3137,32 +3137,54 @@ async def autorun_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         args = context.args or []
         if len(args) < 1:
-            await update.message.reply_text("Usage: /autorun <quiz_id> <interval_minutes (default 60)>")
+            await update.message.reply_text("Usage: /autorun <quiz_id> <interval_minutes|HH:MM> [wait_before_start_seconds]")
             return
         try:
             quiz_id = int(args[0])
         except ValueError:
             await update.message.reply_text("Invalid quiz_id")
             return
-        interval = int(args[1]) if len(args) > 1 else 60
+
+        schedule_time = None
+        interval = 60
+        wait_before_start = 10
+
+        if len(args) >= 2:
+            second = args[1].strip()
+            if TIME_RE.match(second):
+                schedule_time = second  # 'HH:MM' 24-hour (UTC)
+            else:
+                try:
+                    interval = int(second)
+                except ValueError:
+                    await update.message.reply_text("Invalid second parameter. Provide minutes (integer) or HH:MM.")
+                    return
+        if len(args) >= 3:
+            try:
+                wait_before_start = int(args[2])
+            except ValueError:
+                pass
+
         with sqlite3.connect(DB_FILE) as conn:
             cur = conn.cursor()
             cur.execute("SELECT id FROM autoruns WHERE quiz_id = ? AND active = 1", (quiz_id,))
             row = cur.fetchone()
             if row:
                 autorun_id = row[0]
-                cur.execute("UPDATE autoruns SET interval_minutes = ? WHERE id = ?", (interval, autorun_id))
+                cur.execute("UPDATE autoruns SET interval_minutes = ?, schedule_time = ? WHERE id = ?", (interval, schedule_time, autorun_id))
             else:
-                cur.execute("INSERT INTO autoruns (quiz_id, interval_minutes) VALUES (?, ?)", (quiz_id, interval))
+                cur.execute("INSERT INTO autoruns (quiz_id, interval_minutes, schedule_time) VALUES (?, ?, ?)", (quiz_id, interval, schedule_time))
                 autorun_id = cur.lastrowid
             conn.commit()
-        # schedule task
-        schedule_autorun_task(context.application, autorun_id, quiz_id, interval)
-        await update.message.reply_text(f"✅ Autorun scheduled: quiz {quiz_id} every {interval} minutes (id={autorun_id})")
+
+        schedule_autorun_task(context.application, autorun_id, quiz_id, interval, wait_before_start=wait_before_start)
+        if schedule_time:
+            await update.message.reply_text(f"✅ Autorun scheduled: quiz {quiz_id} at {schedule_time} daily (id={autorun_id}) — times are UTC")
+        else:
+            await update.message.reply_text(f"✅ Autorun scheduled: quiz {quiz_id} every {interval} minutes (id={autorun_id})")
     except Exception as e:
         logging.error(f"Error in autorun_command: {e}")
         await update.message.reply_text("❌ Error scheduling autorun")
-
 
 async def stopautorun_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Owner-only: /stopautorun <autorun_id|quiz_id|all>"""
