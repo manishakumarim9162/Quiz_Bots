@@ -1,0 +1,10 @@
+# 🤖 टेलीग्राम बॉट क्रेडेंशियल्स
+BOT_TOKEN=8917260712:AAGjlAm_GRfM83bgYg4ID_ZIdxs2EiQbuhk
+SUPPORT_GROUP_ID=-1002302478755
+
+# 👤 बॉट ओनर की डिटेल्स
+OWNER_ID=7771481658
+
+# ⚙️ टेलीग्राम एपीआई क्रेडेंशियल्स (my.telegram.org से लें)
+API_ID=36525145
+API_HASH=349c9c7f0e7467dccf1312dda6cd54bd
