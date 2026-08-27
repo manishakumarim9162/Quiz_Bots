@@ -3160,6 +3160,28 @@ async def stopautorun_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         logging.error(f"Error in stopautorun_command: {e}")
         await update.message.reply_text("❌ Error stopping autorun")
         
+# time check 
+def next_occurrence_from_hhmm(hhmm_str, ref_dt=None):
+    """
+    hhmm_str: 'HH:MM' (24-hour). Returns UTC datetime of next occurrence (today or tomorrow).
+    Uses datetime.utcnow() if ref_dt is None.
+    """
+    if not hhmm_str:
+        return None
+    if ref_dt is None:
+        ref_dt = datetime.utcnow()
+    try:
+        parts = hhmm_str.split(":")
+        hour = int(parts[0])
+        minute = int(parts[1])
+    except Exception:
+        return None
+    # build target for today
+    target = datetime(ref_dt.year, ref_dt.month, ref_dt.day, hour, minute)
+    if target <= ref_dt:
+        target = target + timedelta(days=1)
+    return target
+    
 # ⚡ send message to support group (only use owner)
 async def send_to_support_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Owner-only: In private chat reply to a message and copy it (with buttons if any) to SUPPORT_GROUP_ID."""
