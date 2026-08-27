@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import json
+import re
 import logging
 import random
 import asyncio
@@ -20,6 +21,7 @@ from telegram.ext import (
 from telegram.error import NetworkError
 from telegram.request import HTTPXRequest
 
+TIME_RE = re.compile(r'^\d{1,2}:\d{2}$')
 # Enable Logging
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 
