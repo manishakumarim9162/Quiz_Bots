@@ -82,7 +82,7 @@ def init_db():
                 title TEXT,
                 description TEXT,
                 timer INTEGER DEFAULT 30,
-                negative_value REAL DEFAULT 0.0 -- 👈 Nayi col successfully configuration synced
+                negative_value REAL DEFAULT 0.0
             )
         """)
         cursor.execute("""
@@ -99,28 +99,32 @@ def init_db():
         """)
         cursor.execute("CREATE TABLE IF NOT EXISTS broadcast_users (chat_id INTEGER PRIMARY KEY)")
         cursor.execute("CREATE TABLE IF NOT EXISTS broadcast_groups (chat_id INTEGER PRIMARY KEY)")
+
+        # Create autoruns with schedule_time present
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS autoruns (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 quiz_id INTEGER NOT NULL,
                 interval_minutes INTEGER NOT NULL,
-                next_run TEXT,
-                active INTEGER DEFAULT 1,
-                created_at TEXT DEFAULT (datetime('now'))
-            )
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS autoruns (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                quiz_id INTEGER NOT NULL,
-                interval_minutes INTEGER NOT NULL,
-                schedule_time TEXT,            -- stores 'HH:MM' or NULL
+                schedule_time TEXT,      -- stores 'HH:MM' or NULL
                 next_run TEXT,
                 active INTEGER DEFAULT 1,
                 created_at TEXT DEFAULT (datetime('now'))
             )
         """)
         conn.commit()
+
+        # Ensure older DBs get the schedule_time column if missing
+        cursor.execute("PRAGMA table_info('autoruns')")
+        cols = [row[1] for row in cursor.fetchall()]
+        if "schedule_time" not in cols:
+            try:
+                cursor.execute("ALTER TABLE autoruns ADD COLUMN schedule_time TEXT")
+                conn.commit()
+                logging.info("Added missing column 'schedule_time' to autoruns table")
+            except Exception as ae:
+                logging.warning(f"Could not add schedule_time column: {ae}")
+
         conn.close()
         logging.info("Database initialized successfully with negative_value column")
     except Exception as e:
