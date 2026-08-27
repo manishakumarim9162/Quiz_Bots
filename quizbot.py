@@ -37,6 +37,8 @@ GROUP_GAMES = {}
 
 # In-memory map for autorun asyncio tasks: key = autorun_id, value = asyncio.Task
 AUTORUN_TASKS = {}
+# Global autorun serial lock — ensures autoruns run one-by-one in SUPPORT_GROUP_ID
+AUTORUN_SERIAL_LOCK = asyncio.Lock()
 # ====================================================================
 # 🔥 FULLY OPERATIONAL GLOBAL CONVERSATION STATES (AUTOMATIC NO-OVERLAP SEQUENCE)
 # ====================================================================
