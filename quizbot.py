@@ -5,7 +5,7 @@ import re
 import logging
 import random
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from dotenv import load_dotenv
 from telegram import (
