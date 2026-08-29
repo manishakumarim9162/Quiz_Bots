@@ -25,6 +25,9 @@ TIME_RE = re.compile(r'^\d{1,2}:\d{2}$')
 # Enable Logging
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 
+# 🇮🇳 India Standard Time (IST) Timezone
+IST = timezone(timedelta(hours=5, minutes=30))
+
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = int(os.getenv("OWNER_ID")) if os.getenv("OWNER_ID") else None
