@@ -2941,7 +2941,7 @@ async def autorun_worker(app, autorun_id, quiz_id, interval_minutes, wait_before
                 "🏁 *Use /stop in the group to stop it once started.*"
             )
 
-            now = datetime.utcnow()
+            now = datetime.now(tz=IST)  # 🇮🇳 IST time use kiya hai 
 
             # Schedule-wait: either HH:MM schedule or interval-based wait
             if schedule_time:
