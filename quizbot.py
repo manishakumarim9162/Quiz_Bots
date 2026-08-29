@@ -2911,6 +2911,8 @@ async def autorun_worker(app, autorun_id, quiz_id, interval_minutes, wait_before
     - Ensures serial execution across autoruns by acquiring AUTORUN_SERIAL_LOCK before posting/starting in SUPPORT_GROUP_ID.
     - ✅ FORCE STARTS quiz without waiting for users (autorun mode)
     - Times are in IST (Indian Standard Time)
+    - Includes "I am ready!" button on panel
+    - Auto-pins the quiz panel
     """
     try:
         logging.info(f"🚀 Autorun worker {autorun_id} started for quiz {quiz_id}")
@@ -2922,7 +2924,7 @@ async def autorun_worker(app, autorun_id, quiz_id, interval_minutes, wait_before
                 cur.execute("SELECT active, schedule_time FROM autoruns WHERE id = ?", (autorun_id,))
                 row = cur.fetchone()
                 if not row or row[0] != 1:
-                    logging.info(f"Autorun {autorun_id}: stopped via DB (active flag = 0)")
+                    logging.info(f"Autorun {autorun_id}: stopped via DB (active flag = 0 or id changed)")
                     break  # stopped via DB
                 schedule_time = row[1]
 
@@ -2938,7 +2940,7 @@ async def autorun_worker(app, autorun_id, quiz_id, interval_minutes, wait_before
             db_neg_val = negative_value if negative_value is not None else 0.0
 
             init_text = (
-                f"🎮 *LIVE QUIZ STARTED SOON*\n\n"
+                f"🎮 *LIVE QUIZ STARTED NOW*\n\n"
                 f"📚 *Title:* {escape_markdown(title)}\n"
                 f"🔥 *Description:* {escape_markdown(desc) if desc else 'No description'}\n"
                 f"⏱ *Time per question:* {time_disp}\n"
@@ -3010,23 +3012,27 @@ async def autorun_worker(app, autorun_id, quiz_id, interval_minutes, wait_before
 
                 try:
                     logging.info(f"📨 Autorun {autorun_id}: posting quiz panel in support group {SUPPORT_GROUP_ID}")
+                    
+                    # 🇮🇳 "I am ready!" Button add करो
+                    raw_button = {
+                        "text": "I am ready! ✅",
+                        "callback_data": f"ready_{quiz_id}",
+                        "style": "success"  # Green color
+                    }
+                    kb = [[raw_button]]
+                    
                     sent = await app.bot.send_message(
                         chat_id=SUPPORT_GROUP_ID,
                         text=init_text,
+                        reply_markup=InlineKeyboardMarkup(kb),  # 👈 Button add किया
                         parse_mode="Markdown"
                     )
+                    logging.info(f"📨 Autorun {autorun_id}: panel posted with 'I am ready!' button (msg_id={sent.message_id})")
                     
-                    # best-effort pin
-                    try:
-                        if sent and hasattr(sent, "message_id"):
-                            await app.bot.pin_chat_message(
-                                chat_id=SUPPORT_GROUP_ID, 
-                                message_id=sent.message_id, 
-                                disable_notification=False
-                            )
-                            logging.info(f"📌 Autorun {autorun_id}: pinned quiz panel (msg_id={sent.message_id})")
-                    except Exception as e:
-                        logging.warning(f"Autorun {autorun_id}: pin failed (optional): {e}")
+                    # 📌 Panel को pin करो (async में)
+                    if sent and hasattr(sent, "message_id"):
+                        asyncio.create_task(pin_autorun_panel(app.bot, SUPPORT_GROUP_ID, sent.message_id, autorun_id))
+                        
                 except Exception as e:
                     logging.error(f"❌ Autorun {autorun_id}: failed to post panel: {e}")
                     return
@@ -3441,6 +3447,33 @@ def next_occurrence_from_hhmm(hhmm_str, ref_dt=None):
         target = target + timedelta(days=1)
     
     return target
+
+async def pin_autorun_panel(bot, chat_id, message_id, autorun_id):
+    """
+    🔒 Pin करने की function - retries के साथ
+    Autorun panel को pin करता है बिना blocking के
+    """
+    try:
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                await bot.pin_chat_message(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    disable_notification=False
+                )
+                logging.info(f"📌 Autorun {autorun_id}: successfully pinned message {message_id} (attempt {attempt + 1})")
+                return True
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    logging.warning(f"📌 Autorun {autorun_id}: pin attempt {attempt + 1} failed: {e}, retrying...")
+                    await asyncio.sleep(2)
+                else:
+                    logging.error(f"📌 Autorun {autorun_id}: pin failed after {max_retries} attempts: {e}")
+                    return False
+    except Exception as e:
+        logging.error(f"Error in pin_autorun_panel: {e}")
+        return False
     
 # ⚡ send message to support group (only use owner)
 async def send_to_support_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
