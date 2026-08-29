@@ -3136,22 +3136,41 @@ async def load_autoruns_on_startup(app):
 # ---------------- end autorun helpers ------------------
 
 async def autorun_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Owner-only: /autorun <quiz_id> <interval_minutes|HH:MM> [wait_before_start_seconds]"""
+    """Owner-only: /autorun <quiz_id> <interval_minutes|HH:MM> [wait_before_start_seconds]
+    
+    🇮🇳 All times are in IST (Indian Standard Time)
+    Examples:
+        /autorun 5 60       → Every 60 minutes
+        /autorun 5 14:30    → Daily at 2:30 PM IST
+        /autorun 5 09:00 15 → Daily at 9:00 AM IST, wait 15 seconds before auto-start
+    """
     try:
         if OWNER_ID is None or update.message.from_user.id != OWNER_ID:
-            await update.message.reply_text("❌ Unauthorized")
+            await update.message.reply_text("❌ Unauthorized - Only bot owner can use this command")
             return
         if not SUPPORT_GROUP_ID:
             await update.message.reply_text("❌ SUPPORT_GROUP_ID not configured in .env")
             return
         args = context.args or []
         if len(args) < 1:
-            await update.message.reply_text("Usage: /autorun <quiz_id> <interval_minutes|HH:MM> [wait_before_start_seconds]")
+            # 🇮🇳 Help message with IST timezone info
+            help_text = (
+                "📖 *Autorun Quiz Command Help*\n\n"
+                "🔧 *Usage:* `/autorun <quiz_id> <interval|HH:MM> [wait_seconds]`\n\n"
+                "🇮🇳 *All times are in IST (Indian Standard Time)*\n\n"
+                "📋 *Examples:*\n"
+                "• `/autorun 5 60` → हर 60 मिनट में quiz चले\n"
+                "• `/autorun 5 14:30` → रोज़ 2:30 PM IST पर quiz\n"
+                "• `/autorun 5 09:00 15` → रोज़ 9:00 AM IST पर, 15 सेकंड का join time\n"
+                "• `/autorun 5 18:45 20` → रोज़ 6:45 PM IST पर, 20 सेकंड का join time\n\n"
+                "⏹️ *Stop करने के लिए:* `/stopautorun <autorun_id>`"
+            )
+            await update.message.reply_text(help_text, parse_mode="Markdown")
             return
         try:
             quiz_id = int(args[0])
         except ValueError:
-            await update.message.reply_text("Invalid quiz_id")
+            await update.message.reply_text("❌ Invalid quiz_id. Provide a number.\nExample: `/autorun 5 60`", parse_mode="Markdown")
             return
 
         schedule_time = None
@@ -3161,12 +3180,18 @@ async def autorun_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if len(args) >= 2:
             second = args[1].strip()
             if TIME_RE.match(second):
-                schedule_time = second  # 'HH:MM' 24-hour (UTC)
+                schedule_time = second  # 'HH:MM' 24-hour (IST)
             else:
                 try:
                     interval = int(second)
                 except ValueError:
-                    await update.message.reply_text("Invalid second parameter. Provide minutes (integer) or HH:MM.")
+                    await update.message.reply_text(
+                        "❌ Invalid second parameter.\n\n"
+                        "Provide either:\n"
+                        "• Minutes (e.g., `60`)\n"
+                        "• Time in HH:MM format (e.g., `14:30` for 2:30 PM IST)",
+                        parse_mode="Markdown"
+                    )
                     return
         if len(args) >= 3:
             try:
@@ -3187,14 +3212,33 @@ async def autorun_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             conn.commit()
 
         schedule_autorun_task(context.application, autorun_id, quiz_id, interval, wait_before_start=wait_before_start)
+        
+        # 🇮🇳 Updated messages with IST timezone info
         if schedule_time:
-            await update.message.reply_text(f"✅ Autorun scheduled: quiz {quiz_id} at {schedule_time} daily (id={autorun_id}) — times are UTC")
+            success_msg = (
+                f"✅ *Autorun Created Successfully!*\n\n"
+                f"🎯 *Quiz ID:* `{quiz_id}`\n"
+                f"⏰ *Schedule:* Daily at `{schedule_time} IST`\n"
+                f"🆔 *Autorun ID:* `{autorun_id}`\n"
+                f"⏳ *Join Time:* {wait_before_start} seconds\n\n"
+                f"📍 *Timezone:* India Standard Time (IST = UTC+5:30)\n\n"
+                f"⏹️ *To stop:* `/stopautorun {autorun_id}`"
+            )
+            await update.message.reply_text(success_msg, parse_mode="Markdown")
         else:
-            await update.message.reply_text(f"✅ Autorun scheduled: quiz {quiz_id} every {interval} minutes (id={autorun_id})")
+            success_msg = (
+                f"✅ *Autorun Created Successfully!*\n\n"
+                f"🎯 *Quiz ID:* `{quiz_id}`\n"
+                f"⏰ *Interval:* Every `{interval}` minutes\n"
+                f"🆔 *Autorun ID:* `{autorun_id}`\n"
+                f"⏳ *Join Time:* {wait_before_start} seconds\n\n"
+                f"⏹️ *To stop:* `/stopautorun {autorun_id}`"
+            )
+            await update.message.reply_text(success_msg, parse_mode="Markdown")
     except Exception as e:
         logging.error(f"Error in autorun_command: {e}")
-        await update.message.reply_text("❌ Error scheduling autorun")
-
+        await update.message.reply_text("❌ Error scheduling autorun. Check logs for details.")
+        
 async def stopautorun_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Owner-only: /stopautorun <autorun_id|quiz_id|all>"""
     try:
