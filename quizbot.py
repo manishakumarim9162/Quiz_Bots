@@ -3248,23 +3248,37 @@ async def stopautorun_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 # time check 
 def next_occurrence_from_hhmm(hhmm_str, ref_dt=None):
     """
-    hhmm_str: 'HH:MM' (24-hour). Returns UTC datetime of next occurrence (today or tomorrow).
-    Uses datetime.utcnow() if ref_dt is None.
+    hhmm_str: 'HH:MM' (24-hour IST).
+    Returns IST datetime of next occurrence (today or tomorrow).
+    Uses datetime.now(tz=IST) if ref_dt is None.
     """
     if not hhmm_str:
         return None
+    
+    # 🇮🇳 IST time use करो (UTC नहीं)
     if ref_dt is None:
-        ref_dt = datetime.utcnow()
+        ref_dt = datetime.now(tz=IST)
+    
     try:
         parts = hhmm_str.split(":")
         hour = int(parts[0])
         minute = int(parts[1])
     except Exception:
         return None
-    # build target for today
-    target = datetime(ref_dt.year, ref_dt.month, ref_dt.day, hour, minute)
+    
+    # Build target for today (IST में)
+    target = datetime(
+        ref_dt.year, 
+        ref_dt.month, 
+        ref_dt.day, 
+        hour, 
+        minute,
+        tzinfo=IST  # 👈 IST timezone add करो
+    )
+    
     if target <= ref_dt:
         target = target + timedelta(days=1)
+    
     return target
     
 # ⚡ send message to support group (only use owner)
