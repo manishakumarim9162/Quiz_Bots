@@ -3240,54 +3240,122 @@ async def autorun_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Error scheduling autorun. Check logs for details.")
         
 async def stopautorun_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Owner-only: /stopautorun <autorun_id|quiz_id|all>"""
+    """Owner-only: /stopautorun <autorun_id|quiz_id|all>
+    
+    Stop running autoruns by ID or Quiz ID
+    Examples:
+        /stopautorun 1      → Stop autorun with ID 1
+        /stopautorun 5      → Stop all autoruns for quiz ID 5
+        /stopautorun all    → Stop ALL autoruns
+    """
     try:
         if OWNER_ID is None or update.message.from_user.id != OWNER_ID:
-            await update.message.reply_text("❌ Unauthorized")
+            await update.message.reply_text("❌ Unauthorized - Only bot owner can use this command")
             return
         args = context.args or []
         if not args:
-            await update.message.reply_text("Usage: /stopautorun <autorun_id|quiz_id|all>")
+            # 🇮🇳 Help message
+            help_text = (
+                "📖 *Stop Autorun Command Help*\n\n"
+                "🔧 *Usage:* `/stopautorun <autorun_id|quiz_id|all>`\n\n"
+                "📋 *Examples:*\n"
+                "• `/stopautorun 1` → Autorun ID 1 को stop करो\n"
+                "• `/stopautorun 5` → Quiz ID 5 के सब autoruns stop करो\n"
+                "• `/stopautorun all` → सब autoruns stop करो\n\n"
+                "💡 *Tip:* Autorun ID अपने जब `/autorun` command भेजते हो तब मिलता है"
+            )
+            await update.message.reply_text(help_text, parse_mode="Markdown")
             return
         key = args[0].lower()
         with sqlite3.connect(DB_FILE) as conn:
             cur = conn.cursor()
+            
+            # ============ CASE 1: Stop ALL autoruns ============
             if key == "all":
+                cur.execute("SELECT id FROM autoruns WHERE active = 1")
+                active_autoruns = cur.fetchall()
+                num_stopped = len(active_autoruns)
+                
                 cur.execute("UPDATE autoruns SET active = 0 WHERE active = 1")
                 conn.commit()
+                
                 for aid in list(AUTORUN_TASKS.keys()):
                     cancel_autorun_task(aid)
-                await update.message.reply_text("✅ All autoruns stopped.")
+                
+                if num_stopped > 0:
+                    stop_msg = (
+                        f"✅ *All Autoruns Stopped!*\n\n"
+                        f"🛑 Total stopped: `{num_stopped}` autorun(s)\n"
+                        f"📊 All autoruns have been disabled and workers cancelled."
+                    )
+                    await update.message.reply_text(stop_msg, parse_mode="Markdown")
+                else:
+                    await update.message.reply_text("⚠️ No active autoruns found to stop.")
                 return
-            # try interpret as autorun id
+            
+            # ============ CASE 2: Stop by Autorun ID ============
             try:
                 aid = int(key)
+                cur.execute("SELECT quiz_id FROM autoruns WHERE id = ?", (aid,))
+                autorun_row = cur.fetchone()
+                
+                if not autorun_row:
+                    await update.message.reply_text(f"❌ Autorun with ID `{aid}` not found.", parse_mode="Markdown")
+                    return
+                
+                quiz_id = autorun_row[0]
+                
                 cur.execute("UPDATE autoruns SET active = 0 WHERE id = ?", (aid,))
                 conn.commit()
                 cancel_autorun_task(aid)
-                await update.message.reply_text(f"✅ Autorun {aid} stopped.")
+                
+                stop_msg = (
+                    f"✅ *Autorun Stopped Successfully!*\n\n"
+                    f"🆔 *Autorun ID:* `{aid}`\n"
+                    f"🎯 *Quiz ID:* `{quiz_id}`\n"
+                    f"🛑 *Status:* Disabled\n"
+                    f"📊 *Worker:* Cancelled"
+                )
+                await update.message.reply_text(stop_msg, parse_mode="Markdown")
                 return
             except ValueError:
-                # treat as quiz_id
+                # ============ CASE 3: Stop by Quiz ID ============
                 try:
                     qid = int(key)
                     cur.execute("SELECT id FROM autoruns WHERE quiz_id = ? AND active = 1", (qid,))
                     rows = cur.fetchall()
+                    
                     if not rows:
-                        await update.message.reply_text("No active autorun found for that quiz.")
+                        await update.message.reply_text(f"⚠️ No active autorun found for quiz ID `{qid}`.", parse_mode="Markdown")
                         return
+                    
+                    num_stopped = len(rows)
                     for (aid,) in rows:
                         cur.execute("UPDATE autoruns SET active = 0 WHERE id = ?", (aid,))
                         cancel_autorun_task(aid)
                     conn.commit()
-                    await update.message.reply_text(f"✅ Stopped {len(rows)} autorun(s) for quiz {qid}.")
+                    
+                    stop_msg = (
+                        f"✅ *Autoruns Stopped Successfully!*\n\n"
+                        f"🎯 *Quiz ID:* `{qid}`\n"
+                        f"🛑 *Total Stopped:* `{num_stopped}` autorun(s)\n"
+                        f"📊 *Workers:* All cancelled"
+                    )
+                    await update.message.reply_text(stop_msg, parse_mode="Markdown")
                     return
                 except ValueError:
-                    await update.message.reply_text("Invalid parameter.")
+                    await update.message.reply_text(
+                        "❌ Invalid parameter.\n\n"
+                        "Provide either:\n"
+                        "• Autorun ID (e.g., `1`)\n"
+                        "• Quiz ID (e.g., `5`)\n"
+                        "• `all` (to stop everything)",
+                        parse_mode="Markdown"
+                    )
                     return
     except Exception as e:
         logging.error(f"Error in stopautorun_command: {e}")
-        await update.message.reply_text("❌ Error stopping autorun")
+        await update.message.reply_text("❌ Error stopping autorun. Check logs for details.")
         
 # time check 
 def next_occurrence_from_hhmm(hhmm_str, ref_dt=None):
