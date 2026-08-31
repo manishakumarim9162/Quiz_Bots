@@ -7,6 +7,8 @@ import random
 import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+# Add these imports at the top:
+from ai_quiz_generator import get_ai_generator
 from dotenv import load_dotenv
 from telegram import (
     Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove, 
@@ -3581,6 +3583,17 @@ async def main():
             },
             fallbacks=[CommandHandler("cancel", cancel)]
         )
+        # AI generation conversation handler
+        ai_quiz_conv_handler = ConversationHandler(
+            entry_points=[CallbackQueryHandler(ai_quiz_topic_prompt, pattern="^aiquiz_topic$")],
+           states={
+               AI_TOPIC: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_ai_topic)],
+               AI_DIFFICULTY: [CallbackQueryHandler(process_ai_difficulty, pattern="^aidiff_")],
+               AI_QUESTIONS_COUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_ai_questions)]
+            },
+            fallbacks=[CommandHandler("cancel", cancel)]
+        )
+        app.add_handler(ai_quiz_conv_handler)
         
         # Registering core structures hooks
         app.add_handler(CommandHandler("start", start))
@@ -3619,6 +3632,11 @@ async def main():
         
         app.add_handler(PollAnswerHandler(track_poll_answers))
         app.add_handler(InlineQueryHandler(inline_query_handler))
+        # AI Quiz generation commands
+        app.add_handler(CommandHandler("aiquiz", ai_quiz_start))
+        app.add_handler(CallbackQueryHandler(ai_quiz_topic_prompt, pattern="^aiquiz_topic$"))
+        app.add_handler(CallbackQueryHandler(ai_quiz_description_prompt, pattern="^aiquiz_desc$"))
+
         
         
         # 🚀 BOT RUN/POLLING INITIALIZATION
@@ -3633,7 +3651,7 @@ async def main():
 
     except Exception as e:
         logging.error(f"Critical error in main loop: {e}")
-        
+
         
 # 🛑 EXECUTION LOOPS CLOSURE:
 if __name__ == '__main__':
