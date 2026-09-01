@@ -137,6 +137,24 @@ def init_db():
             except Exception as ae:
                 logging.warning(f"Could not add schedule_time column: {ae}")
 
+        # Table to store Quiz Configurations
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS quizzes (
+                quiz_id TEXT PRIMARY KEY,
+                creator_id INTEGER,
+                title TEXT,
+                topic TEXT,
+                q_count INTEGER,
+                language TEXT,
+                difficulty TEXT,
+                options_count INTEGER,
+                time_limit INTEGER,
+                shuffle TEXT,
+                negative REAL,
+                questions_json TEXT
+            )
+        """)
+
         conn.close()
         logging.info("Database initialized successfully with negative_value column")
     except Exception as e:
