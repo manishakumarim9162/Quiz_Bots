@@ -3849,6 +3849,29 @@ async def main():
             },
             fallbacks=[CommandHandler("cancel", cancel)]
         )
+
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler("autoquiz", autoquiz_start)],
+        states={
+            TOPIC: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_topic)],
+            Q_COUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_q_count)],
+            TITLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_title)],
+            DESCRIPTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_description)],
+            LANGUAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_language)],
+            EXPLANATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_explanation)],
+            DIFFICULTY: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_difficulty)],
+            OPTIONS_COUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_options_count)],
+            TIME_LIMIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_time_limit)],
+            SHUFFLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_shuffle)],
+            NEGATIVE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_negative_and_finish)],
+        },
+        fallbacks=[CommandHandler("cancel", cancel)],
+    )
+
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(conv_handler)
+
+
         
         # Registering core structures hooks
         app.add_handler(CommandHandler("start", start))
